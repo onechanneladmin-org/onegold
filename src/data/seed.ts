@@ -4,6 +4,9 @@ import { deriveEligibility } from "@/lib/eligibility"
 import { initials } from "@/lib/ids"
 import type {
   AppState,
+  ApprovedBidder,
+  Auction,
+  AuctionBid,
   Certificate,
   Customer,
   CustomerDocument,
@@ -913,7 +916,7 @@ export function createSeed(): AppState {
       certificateId: "CRT-2026-0009",
       sellerName: "Khalid Hassan",
       askingPriceUsd: 16800,
-      status: "listed",
+      status: "withdrawn",
       listedAt: "2026-09-01T09:00:00.000Z",
     },
     {
@@ -926,6 +929,70 @@ export function createSeed(): AppState {
     },
   ]
 
+  const approvedBidders: ApprovedBidder[] = [
+    { id: "AB-001", name: "Horizon Metals Ltd", type: "investor", approved: true },
+    { id: "AB-002", name: "Aurelia Capital", type: "investor", approved: true },
+    { id: "AB-003", name: "Gulf Custody Partners", type: "investor", approved: true },
+    { id: "AB-004", name: "Meridian Gold Desk", type: "investor", approved: true },
+    { id: "AB-005", name: "Omar Al-Farsi", type: "customer", approved: true },
+    { id: "AB-006", name: "Aisha Rahman", type: "customer", approved: true },
+    { id: "AB-007", name: "Fatima Al-Sayed", type: "customer", approved: true },
+  ]
+
+  const auctions: Auction[] = [
+    {
+      id: "AUC-2026-0001",
+      certificateId: "CRT-2026-0009",
+      sellerName: "Khalid Hassan",
+      sellerCustomerId: "CUS-2026-0011",
+      startingPriceUsd: 10000,
+      reservePriceUsd: 10800,
+      durationHours: 48,
+      startsAt: "2026-09-11T08:00:00.000Z",
+      endsAt: "2026-09-13T18:00:00.000Z",
+      status: "live",
+      createdAt: "2026-09-11T07:50:00.000Z",
+    },
+    {
+      id: "AUC-2026-0002",
+      certificateId: "CRT-2026-0004",
+      sellerName: "Fatima Al-Sayed",
+      sellerCustomerId: "CUS-2026-0005",
+      startingPriceUsd: 38000,
+      reservePriceUsd: 42000,
+      durationHours: 24,
+      startsAt: "2026-09-09T08:00:00.000Z",
+      endsAt: "2026-09-10T08:00:00.000Z",
+      status: "reserve_not_met",
+      createdAt: "2026-09-09T07:40:00.000Z",
+    },
+    {
+      id: "AUC-2026-0003",
+      certificateId: "CRT-2026-0009",
+      sellerName: "Meridian Gold Desk",
+      startingPriceUsd: 15000,
+      reservePriceUsd: 15800,
+      durationHours: 72,
+      startsAt: "2026-08-25T09:00:00.000Z",
+      endsAt: "2026-08-28T09:00:00.000Z",
+      status: "settled",
+      winnerName: "Khalid Hassan",
+      winningBidUsd: 16200,
+      settledAt: "2026-08-28T10:00:00.000Z",
+      createdAt: "2026-08-25T08:30:00.000Z",
+    },
+  ]
+
+  const bids: AuctionBid[] = [
+    { id: "BID-2026-0001", auctionId: "AUC-2026-0001", bidderName: "Horizon Metals Ltd", bidderType: "investor", amountUsd: 10200, at: "2026-09-11T09:15:00.000Z", status: "outbid" },
+    { id: "BID-2026-0002", auctionId: "AUC-2026-0001", bidderName: "Gulf Custody Partners", bidderType: "investor", amountUsd: 10500, at: "2026-09-11T14:40:00.000Z", status: "outbid" },
+    { id: "BID-2026-0003", auctionId: "AUC-2026-0001", bidderName: "Aurelia Capital", bidderType: "investor", amountUsd: 11000, at: "2026-09-12T07:20:00.000Z", status: "winning" },
+    { id: "BID-2026-0004", auctionId: "AUC-2026-0002", bidderName: "Horizon Metals Ltd", bidderType: "investor", amountUsd: 38500, at: "2026-09-09T11:00:00.000Z", status: "lost" },
+    { id: "BID-2026-0005", auctionId: "AUC-2026-0002", bidderName: "Omar Al-Farsi", bidderType: "customer", amountUsd: 39100, at: "2026-09-09T16:20:00.000Z", status: "lost" },
+    { id: "BID-2026-0006", auctionId: "AUC-2026-0003", bidderName: "Khalid Hassan", bidderType: "customer", amountUsd: 16200, at: "2026-08-27T18:10:00.000Z", status: "won" },
+    { id: "BID-2026-0007", auctionId: "AUC-2026-0003", bidderName: "Aurelia Capital", bidderType: "investor", amountUsd: 15600, at: "2026-08-26T12:00:00.000Z", status: "lost" },
+  ]
+
   return {
     settings,
     customers,
@@ -936,6 +1003,10 @@ export function createSeed(): AppState {
     certificates,
     vaults,
     listings,
+    auctions,
+    bids,
+    approvedBidders,
+    sessionBidder: "Aurelia Capital",
     reviews: [
       { id: "REV-001", type: "kyc", subjectId: "CUS-2026-0004", subjectLabel: "James Whitmore — KYC", status: "needs_info", reviewer: "Compliance Desk", notes: "Source-of-wealth letter incomplete.", updatedAt: "2026-08-24T10:00:00.000Z" },
       { id: "REV-002", type: "kyc", subjectId: "CUS-2026-0008", subjectLabel: "Sofia Martinez — KYC", status: "pending", reviewer: "Compliance Desk", notes: "Awaiting identity verification.", updatedAt: "2026-09-08T14:30:00.000Z" },
@@ -951,7 +1022,7 @@ export function createSeed(): AppState {
       { id: "act-1", entityType: "customer", entityId: "CUS-2026-0008", customerId: "CUS-2026-0008", title: "Customer created", detail: "Walk-in registration started.", at: "2026-09-08T14:20:00.000Z", actor: "Shop Operator" },
       { id: "act-2", entityType: "gold", entityId: "GLD-2026-0010", customerId: "CUS-2026-0012", title: "Gold intake", detail: "18K chain recorded and held in intake cage.", at: "2026-09-02T13:30:00.000Z", actor: "Shop Operator" },
       { id: "act-3", entityType: "financing", entityId: "FIN-2026-0011", customerId: "CUS-2026-0001", title: "Financing booked", detail: "Ujrah facility against GLD-2026-0012.", at: "2026-08-01T05:20:00.000Z", actor: "Shop Operator" },
-      { id: "act-4", entityType: "certificate", entityId: "CRT-2026-0009", customerId: "CUS-2026-0011", title: "Certificate listed", detail: "CRT-2026-0009 submitted to marketplace.", at: "2026-09-01T09:00:00.000Z", actor: "Shop Operator" },
+      { id: "act-4", entityType: "auction", entityId: "AUC-2026-0001", customerId: "CUS-2026-0011", title: "Auction opened", detail: "CRT-2026-0009 listed for auction at $10,000 starting / $10,800 reserve.", at: "2026-09-11T07:50:00.000Z", actor: "Shop Operator" },
       { id: "act-5", entityType: "payment", entityId: "FIN-2026-0005", customerId: "CUS-2026-0006", title: "Collection missed", detail: "Priya Menon installment marked overdue.", at: "2026-08-14T00:00:00.000Z", actor: "System" },
       { id: "act-6", entityType: "financing", entityId: "FIN-2026-0007", customerId: "CUS-2026-0009", title: "Recovery opened", detail: "David Chen facility moved to recovery workflow.", at: "2026-06-02T15:00:00.000Z", actor: "Collections Lead" },
       { id: "act-7", entityType: "gold", entityId: "GLD-2026-0008", customerId: "CUS-2026-0010", title: "Gold released", detail: "Redeemed facility — physical gold returned.", at: "2026-01-12T04:30:00.000Z", actor: "Shop Operator" },

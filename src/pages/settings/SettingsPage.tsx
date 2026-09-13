@@ -3,14 +3,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { ComplianceNote } from "@/components/shared/Disclaimer"
 import { useAppState, useAppStore } from "@/store/AppStore"
 import { useState } from "react"
 
 export function SettingsPage() {
-  const { settings, vaults } = useAppState()
-  const { updateSettings, resetToSeed } = useAppStore()
+  const { settings, vaults, approvedBidders, sessionBidder } = useAppState()
+  const { updateSettings, resetToSeed, setSessionBidder } = useAppStore()
   const [shopName, setShopName] = useState(settings.shopName)
   const [shopLocation, setShopLocation] = useState(settings.shopLocation)
   const [price, setPrice] = useState(String(settings.goldReferenceUsdPerGram))
@@ -103,6 +104,21 @@ export function SettingsPage() {
                 <span className="text-muted-foreground"> · {v.location} · {v.lockers.length} lockers</span>
               </p>
             ))}
+            <div className="space-y-2 pt-2">
+              <Label>Acting bidder (auctions)</Label>
+              <Select value={sessionBidder} onValueChange={setSessionBidder}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {approvedBidders.filter((b) => b.approved).map((b) => (
+                    <SelectItem key={b.id} value={b.name}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               variant="outline"
               onClick={() => {

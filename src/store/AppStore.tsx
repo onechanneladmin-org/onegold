@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { addMonths } from "date-fns"
+import { addHours, addMonths } from "date-fns"
 import { createSeed } from "@/data/seed"
 import {
   applyPaymentStatuses,
@@ -22,7 +22,16 @@ import {
 } from "@/lib/calculations"
 import { deriveEligibility } from "@/lib/eligibility"
 import {
+  applyAuctionClock,
+  canCreateAuction,
+  isAuctionOpen,
+  namesMatch,
+  validateBid,
+} from "@/lib/auction"
+import {
   initials,
+  nextAuctionId,
+  nextBidId,
   nextCertificateId,
   nextCustomerId,
   nextFinancingId,
@@ -44,14 +53,18 @@ import type {
   Financing,
   GoldItem,
   IntakeGoldInput,
+  Auction,
+  CreateAuctionInput,
   KycStatus,
   ListCertificateInput,
   MarketplaceListing,
+  PlaceBidInput,
   RecordPaymentInput,
   RecoveryStage,
   RenewFinancingInput,
   ReviewStatus,
   Settings,
+  StoreResult,
 } from "@/types"
 
 const STORAGE_KEY = "onegold-store"
@@ -62,7 +75,14 @@ function loadState(): AppState {
     if (raw) {
       const parsed = JSON.parse(raw) as AppState
       if (parsed?.customers && parsed?.goldItems && parsed?.settings) {
-        return refreshDerived(parsed)
+        const seed = createSeed()
+        return refreshDerived({
+          ...parsed,
+          auctions: parsed.auctions ?? seed.auctions,
+          bids: parsed.bids ?? seed.bids,
+          approvedBidders: parsed.approvedBidders ?? seed.approvedBidders,
+          sessionBidder: parsed.sessionBidder ?? seed.sessionBidder,
+        })
       }
     }
   } catch {
@@ -96,7 +116,17 @@ function refreshDerived(state: AppState): AppState {
             : c.status,
     }
   })
-  return { ...state, payments, financings, certificates }
+  const clock = applyAuctionClock(state.auctions ?? [], state.bids ?? [], now)
+  return {
+    ...state,
+    payments,
+    financings,
+    certificates,
+    auctions: clock.auctions,
+    bids: clock.bids,
+    approvedBidders: state.approvedBidders ?? [],
+    sessionBidder: state.sessionBidder ?? "Aurelia Capital",
+  }
 }
 
 function persist(state: AppState) {
@@ -118,10 +148,16 @@ export interface AppStoreValue {
   redeemGold: (financingId: string) => void
   startRecovery: (financingId: string) => void
   updateRecovery: (financingId: string, stage: RecoveryStage, note: string) => void
-  listCertificate: (input: ListCertificateInput) => MarketplaceListing
+  listCertificate: (input: ListCertificateInput) => StoreResult<MarketplaceListing>
   requestTransfer: (listingId: string, buyerName: string) => void
   settleTransfer: (listingId: string) => void
   withdrawListing: (listingId: string) => void
+  createAuction: (input: CreateAuctionInput) => StoreResult<Auction>
+  placeBid: (input: PlaceBidInput) => StoreResult
+  closeAuctionNow: (auctionId: string) => StoreResult
+  settleAuction: (auctionId: string) => StoreResult
+  withdrawAuction: (auctionId: string) => StoreResult
+  setSessionBidder: (name: string) => void
   updateReview: (reviewId: string, status: ReviewStatus, notes: string) => void
   addReview: (review: Omit<ComplianceReview, "id" | "updatedAt">) => void
   updateCertificateChecks: (certificateId: string, patch: Partial<Certificate["eligibilityChecks"]>) => void
@@ -135,6 +171,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     persist(state)
   }, [state])
+
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      setState((prev) => refreshDerived(prev))
+    }, 15000)
+    return () => window.clearInterval(tick)
+  }, [])
 
   const commit = useCallback((updater: (prev: AppState) => AppState) => {
     setState((prev) => refreshDerived(updater(prev)))
@@ -714,8 +757,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [commit])
 
-  const listCertificate = useCallback((input: ListCertificateInput) => {
+  const listCertificate = useCallback((input: ListCertificateInput): StoreResult<MarketplaceListing> => {
     const cert = state.certificates.find((c) => c.id === input.certificateId)
+    const blocking = canCreateAuction(cert, state.auctions)
+    if (cert && blocking.error?.includes("auction")) {
+      return { ok: false, error: blocking.error }
+    }
     const listing: MarketplaceListing = {
       id: nextListingId(state.listings.map((l) => l.id)),
       certificateId: input.certificateId,
@@ -738,8 +785,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         ...prev.activities,
       ],
     }))
-    return listing
-  }, [commit, state.certificates, state.listings])
+    return { ok: true, data: listing }
+  }, [commit, state.certificates, state.listings, state.auctions])
 
   const requestTransfer = useCallback((listingId: string, buyerName: string) => {
     commit((prev) => ({
@@ -809,6 +856,185 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       listings: prev.listings.map((l) => (l.id === listingId ? { ...l, status: "withdrawn" } : l)),
     }))
   }, [commit])
+
+  const setSessionBidder = useCallback((name: string) => {
+    commit((prev) => ({ ...prev, sessionBidder: name }))
+  }, [commit])
+
+  const createAuction = useCallback((input: CreateAuctionInput): StoreResult<Auction> => {
+    const cert = state.certificates.find((c) => c.id === input.certificateId)
+    const gate = canCreateAuction(cert, state.auctions)
+    if (!gate.ok || !cert) return { ok: false, error: gate.error ?? "Cannot create auction." }
+    if (!input.startingPriceUsd || input.startingPriceUsd <= 0) {
+      return { ok: false, error: "Starting price must be greater than zero." }
+    }
+    if (input.reservePriceUsd != null && input.reservePriceUsd < input.startingPriceUsd) {
+      return { ok: false, error: "Reserve price cannot be below the starting price." }
+    }
+    if (!input.durationHours || input.durationHours < 1) {
+      return { ok: false, error: "Auction duration must be at least 1 hour." }
+    }
+    const startsAt = new Date()
+    const auction: Auction = {
+      id: nextAuctionId(state.auctions.map((a) => a.id)),
+      certificateId: cert.id,
+      sellerName: cert.ownershipName,
+      sellerCustomerId: cert.customerId,
+      startingPriceUsd: input.startingPriceUsd,
+      reservePriceUsd: input.reservePriceUsd,
+      durationHours: input.durationHours,
+      startsAt: startsAt.toISOString(),
+      endsAt: addHours(startsAt, input.durationHours).toISOString(),
+      status: "live",
+      createdAt: startsAt.toISOString(),
+    }
+    commit((prev) => ({
+      ...prev,
+      auctions: [auction, ...prev.auctions],
+      listings: prev.listings.map((l) =>
+        l.certificateId === cert.id && (l.status === "listed" || l.status === "pending_review" || l.status === "reserved")
+          ? { ...l, status: "withdrawn" as const }
+          : l,
+      ),
+      activities: [
+        newActivity({
+          entityType: "auction",
+          entityId: auction.id,
+          customerId: cert.customerId,
+          title: "Auction created",
+          detail: `${cert.id} opened at $${input.startingPriceUsd.toLocaleString()} for ${input.durationHours}h.`,
+        }),
+        ...prev.activities,
+      ],
+    }))
+    return { ok: true, data: auction }
+  }, [commit, state.auctions, state.certificates])
+
+  const placeBid = useCallback((input: PlaceBidInput): StoreResult => {
+    const auction = state.auctions.find((a) => a.id === input.auctionId)
+    if (!auction) return { ok: false, error: "Auction not found." }
+    const approvedNames = state.approvedBidders.filter((b) => b.approved).map((b) => b.name)
+    const check = validateBid({
+      auction,
+      bids: state.bids,
+      bidderName: input.bidderName,
+      amountUsd: input.amountUsd,
+      approvedNames,
+    })
+    if (!check.ok) return check
+    const bidder = state.approvedBidders.find((b) => namesMatch(b.name, input.bidderName))
+    const bid = {
+      id: nextBidId(state.bids.map((b) => b.id)),
+      auctionId: auction.id,
+      bidderName: input.bidderName.trim(),
+      bidderType: bidder?.type ?? "investor",
+      amountUsd: input.amountUsd,
+      at: new Date().toISOString(),
+      status: "winning" as const,
+    }
+    commit((prev) => ({
+      ...prev,
+      bids: [
+        bid,
+        ...prev.bids.map((b) =>
+          b.auctionId === auction.id && b.status !== "invalid" ? { ...b, status: "outbid" as const } : b,
+        ),
+      ],
+      activities: [
+        newActivity({
+          entityType: "auction",
+          entityId: auction.id,
+          title: "Bid placed",
+          detail: `${bid.bidderName} bid $${bid.amountUsd.toLocaleString()} on ${auction.id}.`,
+        }),
+        ...prev.activities,
+      ],
+    }))
+    return { ok: true }
+  }, [commit, state.auctions, state.approvedBidders, state.bids])
+
+  const closeAuctionNow = useCallback((auctionId: string): StoreResult => {
+    const auction = state.auctions.find((a) => a.id === auctionId)
+    if (!auction) return { ok: false, error: "Auction not found." }
+    if (!isAuctionOpen(auction) && auction.status !== "live") {
+      return { ok: false, error: "Auction is not live." }
+    }
+    commit((prev) => ({
+      ...prev,
+      auctions: prev.auctions.map((a) =>
+        a.id === auctionId ? { ...a, endsAt: new Date().toISOString() } : a,
+      ),
+      activities: [
+        newActivity({
+          entityType: "auction",
+          entityId: auctionId,
+          title: "Auction closed",
+          detail: "Operator ended the auction. Highest valid bid is evaluated against the reserve.",
+        }),
+        ...prev.activities,
+      ],
+    }))
+    return { ok: true }
+  }, [commit, state.auctions])
+
+  const settleAuction = useCallback((auctionId: string): StoreResult => {
+    const auction = state.auctions.find((a) => a.id === auctionId)
+    if (!auction) return { ok: false, error: "Auction not found." }
+    if (auction.status !== "ended" || !auction.winnerName || !auction.winningBidUsd) {
+      return { ok: false, error: "Settlement requires a winning bid that met the reserve." }
+    }
+    const now = new Date().toISOString()
+    commit((prev) => ({
+      ...prev,
+      auctions: prev.auctions.map((a) =>
+        a.id === auctionId ? { ...a, status: "settled", settledAt: now } : a,
+      ),
+      certificates: prev.certificates.map((c) => {
+        if (c.id !== auction.certificateId) return c
+        const history = c.ownershipHistory.map((h) => (h.to === null ? { ...h, to: now } : h))
+        return {
+          ...c,
+          ownershipName: auction.winnerName!,
+          ownershipHistory: [
+            {
+              id: uid("own"),
+              ownerName: auction.winnerName!,
+              ownerType: "investor",
+              from: now,
+              to: null,
+              event: `Transferred via auction ${auction.id} at $${auction.winningBidUsd!.toLocaleString()}`,
+            },
+            ...history,
+          ],
+        }
+      }),
+      activities: [
+        newActivity({
+          entityType: "auction",
+          entityId: auctionId,
+          title: "Auction settled",
+          detail: `Ownership of ${auction.certificateId} moved to ${auction.winnerName}. Mock settlement only.`,
+        }),
+        ...prev.activities,
+      ],
+    }))
+    return { ok: true }
+  }, [commit, state.auctions])
+
+  const withdrawAuction = useCallback((auctionId: string): StoreResult => {
+    const auction = state.auctions.find((a) => a.id === auctionId)
+    if (!auction) return { ok: false, error: "Auction not found." }
+    const hasBids = state.bids.some((b) => b.auctionId === auctionId && b.status !== "invalid")
+    if (hasBids) return { ok: false, error: "Cannot withdraw an auction after bids have been placed." }
+    if (auction.status !== "live" && auction.status !== "scheduled") {
+      return { ok: false, error: "Only open auctions can be withdrawn." }
+    }
+    commit((prev) => ({
+      ...prev,
+      auctions: prev.auctions.map((a) => (a.id === auctionId ? { ...a, status: "withdrawn" } : a)),
+    }))
+    return { ok: true }
+  }, [commit, state.auctions, state.bids])
 
   const updateReview = useCallback((reviewId: string, status: ReviewStatus, notes: string) => {
     commit((prev) => {
@@ -903,6 +1129,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       requestTransfer,
       settleTransfer,
       withdrawListing,
+      createAuction,
+      placeBid,
+      closeAuctionNow,
+      settleAuction,
+      withdrawAuction,
+      setSessionBidder,
       updateReview,
       addReview,
       updateCertificateChecks,
@@ -926,6 +1158,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       requestTransfer,
       settleTransfer,
       withdrawListing,
+      createAuction,
+      placeBid,
+      closeAuctionNow,
+      settleAuction,
+      withdrawAuction,
+      setSessionBidder,
       updateReview,
       addReview,
       updateCertificateChecks,

@@ -18,6 +18,7 @@ const REPORTS = [
   { id: "certificates", label: "Certificates" },
   { id: "vault", label: "Vault inventory" },
   { id: "marketplace", label: "Marketplace activity" },
+  { id: "auctions", label: "Auction activity" },
 ] as const
 
 export function ReportsPage() {
@@ -102,7 +103,7 @@ function csv(value: string) {
 }
 
 function buildReport(id: string, state: ReturnType<typeof useAppState>) {
-  const { goldItems, financings, payments, certificates, vaults, listings, customers } = state
+  const { goldItems, financings, payments, certificates, vaults, listings, customers, auctions } = state
   if (id === "inventory" || id === "value") {
     return {
       kpis: [
@@ -169,13 +170,30 @@ function buildReport(id: string, state: ReturnType<typeof useAppState>) {
       rows: goldItems.filter((g) => g.vaultId).map((g) => [g.vaultId ?? "", g.lockerId ?? "", g.id, g.packetId ?? ""]),
     }
   }
+  if (id === "marketplace") {
+    return {
+      kpis: [
+        { label: "Listings", value: String(listings.length) },
+        { label: "Listed", value: String(listings.filter((l) => l.status === "listed").length) },
+        { label: "Settled", value: String(listings.filter((l) => l.status === "settled").length) },
+      ],
+      heads: ["Listing", "Certificate", "Ask", "Status"],
+      rows: listings.map((l) => [l.id, l.certificateId, l.askingPriceUsd.toFixed(2), l.status]),
+    }
+  }
   return {
     kpis: [
-      { label: "Listings", value: String(listings.length) },
-      { label: "Listed", value: String(listings.filter((l) => l.status === "listed").length) },
-      { label: "Settled", value: String(listings.filter((l) => l.status === "settled").length) },
+      { label: "Auctions", value: String(auctions.length) },
+      { label: "Live", value: String(auctions.filter((a) => a.status === "live").length) },
+      { label: "Settled", value: String(auctions.filter((a) => a.status === "settled").length) },
     ],
-    heads: ["Listing", "Certificate", "Ask", "Status"],
-    rows: listings.map((l) => [l.id, l.certificateId, l.askingPriceUsd.toFixed(2), l.status]),
+    heads: ["Auction", "Certificate", "Start", "Winner", "Status"],
+    rows: auctions.map((a) => [
+      a.id,
+      a.certificateId,
+      a.startingPriceUsd.toFixed(2),
+      a.winnerName ?? "",
+      a.status,
+    ]),
   }
 }

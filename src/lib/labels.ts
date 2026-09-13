@@ -1,4 +1,6 @@
 import type {
+  AuctionStatus,
+  BidStatus,
   CertificateStatus,
   CustodyStatus,
   Eligibility,
@@ -113,4 +115,22 @@ export const RECOVERY_LABELS: Record<RecoveryStage, string> = {
   review: "Operator review",
   recovery: "Recovery",
   auction_prep: "Asset / auction prep",
+}
+
+export const AUCTION_STATUS_LABELS: Record<AuctionStatus, string> = {
+  scheduled: "Scheduled",
+  live: "Live",
+  ended: "Ended — winner",
+  reserve_not_met: "Reserve not met",
+  settled: "Settled",
+  withdrawn: "Withdrawn",
+}
+
+export const BID_STATUS_LABELS: Record<BidStatus, string> = {
+  active: "Active",
+  outbid: "Outbid",
+  winning: "Winning",
+  won: "Won",
+  lost: "Lost",
+  invalid: "Invalid",
 }

@@ -27,6 +27,14 @@ export type MarketplaceListingStatus =
   | "settled"
   | "withdrawn"
 export type RecoveryStage = "delinquent" | "review" | "recovery" | "auction_prep"
+export type AuctionStatus =
+  | "scheduled"
+  | "live"
+  | "ended"
+  | "reserve_not_met"
+  | "settled"
+  | "withdrawn"
+export type BidStatus = "active" | "outbid" | "winning" | "won" | "lost" | "invalid"
 export type EntityType =
   | "customer"
   | "gold"
@@ -36,6 +44,7 @@ export type EntityType =
   | "vault"
   | "marketplace"
   | "compliance"
+  | "auction"
 
 export interface Customer {
   id: string
@@ -222,6 +231,40 @@ export interface MarketplaceListing {
   settledAt?: string
 }
 
+export interface ApprovedBidder {
+  id: string
+  name: string
+  type: "investor" | "customer"
+  approved: boolean
+}
+
+export interface Auction {
+  id: string
+  certificateId: string
+  sellerName: string
+  sellerCustomerId?: string
+  startingPriceUsd: number
+  reservePriceUsd: number | null
+  durationHours: number
+  startsAt: string
+  endsAt: string
+  status: AuctionStatus
+  winnerName?: string
+  winningBidUsd?: number
+  settledAt?: string
+  createdAt: string
+}
+
+export interface AuctionBid {
+  id: string
+  auctionId: string
+  bidderName: string
+  bidderType: "investor" | "customer"
+  amountUsd: number
+  at: string
+  status: BidStatus
+}
+
 export interface ComplianceReview {
   id: string
   type: "kyc" | "aml" | "gold_verification" | "shariah" | "eligibility"
@@ -259,6 +302,10 @@ export interface AppState {
   certificates: Certificate[]
   vaults: Vault[]
   listings: MarketplaceListing[]
+  auctions: Auction[]
+  bids: AuctionBid[]
+  approvedBidders: ApprovedBidder[]
+  sessionBidder: string
   reviews: ComplianceReview[]
   activities: ActivityEvent[]
 }
@@ -318,4 +365,23 @@ export interface RenewFinancingInput {
 export interface ListCertificateInput {
   certificateId: string
   askingPriceUsd: number
+}
+
+export interface CreateAuctionInput {
+  certificateId: string
+  startingPriceUsd: number
+  reservePriceUsd: number | null
+  durationHours: number
+}
+
+export interface PlaceBidInput {
+  auctionId: string
+  bidderName: string
+  amountUsd: number
+}
+
+export interface StoreResult<T = void> {
+  ok: boolean
+  error?: string
+  data?: T
 }

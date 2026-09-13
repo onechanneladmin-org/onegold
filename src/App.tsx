@@ -13,6 +13,13 @@ import { CertificateDetailPage } from "@/pages/certificates/CertificateDetailPag
 import { PaymentsPage } from "@/pages/payments/PaymentsPage"
 import { VaultPage } from "@/pages/vault/VaultPage"
 import { MarketplacePage } from "@/pages/marketplace/MarketplacePage"
+import { MarketplaceLayout } from "@/pages/marketplace/MarketplaceLayout"
+import { AuctionMarketplacePage } from "@/pages/marketplace/AuctionMarketplacePage"
+import { CreateAuctionPage } from "@/pages/marketplace/CreateAuctionPage"
+import { AuctionDetailPage } from "@/pages/marketplace/AuctionDetailPage"
+import { MyBidsPage } from "@/pages/marketplace/MyBidsPage"
+import { WonAuctionsPage } from "@/pages/marketplace/WonAuctionsPage"
+import { AuctionResultsPage } from "@/pages/marketplace/AuctionResultsPage"
 import { ReportsPage } from "@/pages/reports/ReportsPage"
 import { CompliancePage } from "@/pages/compliance/CompliancePage"
 import { SettingsPage } from "@/pages/settings/SettingsPage"
@@ -35,7 +42,15 @@ export default function App() {
           <Route path="/certificates/:id" element={<CertificateDetailPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/vault" element={<VaultPage />} />
-          <Route path="/marketplace" element={<MarketplacePage />} />
+          <Route path="/marketplace" element={<MarketplaceLayout />}>
+            <Route index element={<MarketplacePage />} />
+            <Route path="auctions" element={<AuctionMarketplacePage />} />
+            <Route path="auctions/new" element={<CreateAuctionPage />} />
+            <Route path="auctions/:id" element={<AuctionDetailPage />} />
+            <Route path="bids" element={<MyBidsPage />} />
+            <Route path="won" element={<WonAuctionsPage />} />
+            <Route path="results" element={<AuctionResultsPage />} />
+          </Route>
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/settings" element={<SettingsPage />} />

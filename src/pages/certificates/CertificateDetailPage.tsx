@@ -1,28 +1,24 @@
-import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { CertificateView } from "@/components/certificates/CertificateView"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { ComplianceNote } from "@/components/shared/Disclaimer"
 import { formatDateTime } from "@/lib/format"
-import { isTradable } from "@/lib/eligibility"
 import { useAppState, useAppStore } from "@/store/AppStore"
 
 export function CertificateDetailPage() {
   const { id } = useParams()
-  const { certificates, settings, financings, goldItems } = useAppState()
-  const { listCertificate, updateCertificateChecks } = useAppStore()
+  const { certificates, settings, financings, goldItems, auctions } = useAppState()
+  const { updateCertificateChecks } = useAppStore()
   const certificate = certificates.find((c) => c.id === id)
-  const [listOpen, setListOpen] = useState(false)
-  const [price, setPrice] = useState("")
+  const liveAuction = auctions.find(
+    (a) => a.certificateId === id && (a.status === "live" || a.status === "scheduled" || a.status === "ended"),
+  )
 
   if (!certificate) {
     return <EmptyState title="Certificate not found" action={<Button asChild><Link to="/certificates">Back</Link></Button>} />
@@ -56,9 +52,13 @@ export function CertificateDetailPage() {
             <Button asChild variant="ghost">
               <Link to={`/financing/${certificate.financingId}`}>Facility</Link>
             </Button>
-            {certificate.status === "active" ? (
-              <Button onClick={() => { setPrice(String(Math.round(certificate.goldValueUsd * 1.02))); setListOpen(true) }}>
-                List on marketplace
+            {liveAuction ? (
+              <Button asChild>
+                <Link to={`/marketplace/auctions/${liveAuction.id}`}>View auction</Link>
+              </Button>
+            ) : certificate.status === "active" ? (
+              <Button asChild>
+                <Link to={`/marketplace/auctions/new?certificate=${certificate.id}`}>Create auction</Link>
               </Button>
             ) : null}
           </>
@@ -88,7 +88,7 @@ export function CertificateDetailPage() {
             ))}
             <ComplianceNote />
             <p className="text-xs text-muted-foreground">
-              Trading eligibility also requires a settled outstanding balance. This is not a securities listing.
+              Trading-eligible certificates can be auctioned. Outstanding is settled when the winning bid is settled. This is not a securities listing.
             </p>
           </CardContent>
         </Card>
@@ -116,29 +116,6 @@ export function CertificateDetailPage() {
         </Card>
       </div>
 
-      <Dialog open={listOpen} onOpenChange={setListOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Submit sell / transfer request</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Mock marketplace only. {isTradable(certificate) ? "This certificate is trading eligible." : "Eligibility gate may send this to review."}
-          </p>
-          <Label>Asking price (USD)</Label>
-          <Input value={price} onChange={(e) => setPrice(e.target.value)} />
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                listCertificate({ certificateId: certificate.id, askingPriceUsd: Number(price) })
-                toast.success("Listing submitted")
-                setListOpen(false)
-              }}
-            >
-              Submit request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -6,12 +6,16 @@ import {
   FINANCING_STATUS_LABELS,
   GOLD_STATUS_LABELS,
   KYC_LABELS,
+  AUCTION_STATUS_LABELS,
+  BID_STATUS_LABELS,
   LISTING_LABELS,
   PAYMENT_STATUS_LABELS,
   REVIEW_LABELS,
   RISK_LABELS,
 } from "@/lib/labels"
 import type {
+  AuctionStatus,
+  BidStatus,
   CertificateStatus,
   CustodyStatus,
   Eligibility,
@@ -44,6 +48,8 @@ export function StatusBadge({
     | ReviewStatus
     | RiskRating
     | MarketplaceListingStatus
+    | AuctionStatus
+    | BidStatus
 }) {
   const map: Record<string, { label: string; variant: Tone }> = {
     pending: { label: FINANCING_STATUS_LABELS.pending, variant: "muted" },
@@ -81,6 +87,15 @@ export function StatusBadge({
     reserved: { label: LISTING_LABELS.reserved, variant: "gold" },
     settled: { label: LISTING_LABELS.settled, variant: "muted" },
     withdrawn: { label: LISTING_LABELS.withdrawn, variant: "muted" },
+    scheduled: { label: AUCTION_STATUS_LABELS.scheduled, variant: "secondary" },
+    live: { label: AUCTION_STATUS_LABELS.live, variant: "success" },
+    ended: { label: AUCTION_STATUS_LABELS.ended, variant: "gold" },
+    reserve_not_met: { label: AUCTION_STATUS_LABELS.reserve_not_met, variant: "warning" },
+    outbid: { label: BID_STATUS_LABELS.outbid, variant: "warning" },
+    winning: { label: BID_STATUS_LABELS.winning, variant: "success" },
+    won: { label: BID_STATUS_LABELS.won, variant: "success" },
+    lost: { label: BID_STATUS_LABELS.lost, variant: "muted" },
+    invalid: { label: BID_STATUS_LABELS.invalid, variant: "danger" },
   }
 
   const item = map[value] ?? { label: String(value), variant: "secondary" as Tone }

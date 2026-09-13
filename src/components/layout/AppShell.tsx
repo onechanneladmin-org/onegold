@@ -81,7 +81,7 @@ function Brand() {
 }
 
 export function AppShell() {
-  const { settings, customers, goldItems, financings, certificates } = useAppState()
+  const { settings, customers, goldItems, financings, certificates, auctions } = useAppState()
   const { theme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -110,8 +110,13 @@ export function AppShell() {
         rows.push({ label: `Certificate · ${c.id}`, to: `/certificates/${c.id}` })
       }
     })
+    auctions.forEach((a) => {
+      if (a.id.toLowerCase().includes(q) || a.certificateId.toLowerCase().includes(q)) {
+        rows.push({ label: `Auction · ${a.id}`, to: `/marketplace/auctions/${a.id}` })
+      }
+    })
     return rows.slice(0, 8)
-  }, [query, customers, goldItems, financings, certificates])
+  }, [query, customers, goldItems, financings, certificates, auctions])
 
   return (
     <div className="flex min-h-svh bg-background">

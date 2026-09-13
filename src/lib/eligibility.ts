@@ -8,9 +8,5 @@ export function deriveEligibility(checks: EligibilityChecks, suspended: boolean)
 }
 
 export function isTradable(certificate: Certificate): boolean {
-  return (
-    certificate.status === "active" &&
-    certificate.eligibility === "TRADING_ELIGIBLE" &&
-    certificate.outstandingUsd === 0
-  )
+  return certificate.status === "active" && certificate.eligibility === "TRADING_ELIGIBLE"
 }

@@ -44,6 +44,14 @@ export function nextListingId(ids: string[]): string {
   return nextPrefixedId(ids, "MKT")
 }
 
+export function nextAuctionId(ids: string[]): string {
+  return nextPrefixedId(ids, "AUC")
+}
+
+export function nextBidId(ids: string[]): string {
+  return nextPrefixedId(ids, "BID")
+}
+
 export function nextPaymentId(ids: string[]): string {
   return nextPrefixedId(ids, "PAY", 2026)
 }
